@@ -1,10 +1,11 @@
 "use client"
 
+import { useState, useEffect, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowUpRight, ArrowDownLeft, UserPlus, Settings, Loader2, ExternalLink, RefreshCw } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
+import { ArrowUpRight, ArrowDownLeft, UserPlus, Settings, Loader2, ExternalLink, RefreshCw } from "lucide-react"
+import { usePoolData } from "@/lib/data-layer/PoolDataProvider"
 import { fetchContractEvents, ActivityEvent } from "@/hooks/useJointSaveContracts"
 
 const PAGE_SIZE = 20
@@ -19,10 +20,17 @@ interface SupabaseActivity {
   tx_hash: string | null
 }
 
+interface GroupActivityProps {
+  groupId: string
+  /** Contract address when known — used as the shared cache key */
+  contractAddress?: string
+  startLedger?: number
+}
+
 type Activity = ActivityEvent
 
 function toActivity(a: SupabaseActivity): Activity {
-  return { ...a, source: "offchain" }
+  return { ...a, source: "offchain" as const }
 }
 
 function mergeAndDedupe(onchain: Activity[], offchain: Activity[]): Activity[] {
@@ -41,54 +49,45 @@ function mergeAndDedupe(onchain: Activity[], offchain: Activity[]): Activity[] {
 
 export function GroupActivity({
   groupId,
-  contractId,
+  contractAddress,
   startLedger = 0,
-}: {
-  groupId: string
-  contractId?: string
-  startLedger?: number
-}) {
-  const [allActivities, setAllActivities] = useState<Activity[]>([])
+}: GroupActivityProps) {
+  const cacheKey =
+    contractAddress && contractAddress !== "pending_deployment"
+      ? contractAddress
+      : groupId
+
+  const { data, isLoading, refetch: refetchCache } = usePoolData(cacheKey)
+  const [onchainActivities, setOnchainActivities] = useState<Activity[]>([])
+  const [loadingOnchain, setLoadingOnchain] = useState(false)
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
 
-  const fetchActivities = useCallback(
-    async (isAutoRefresh = false) => {
-      try {
-        isAutoRefresh ? setRefreshing(true) : setLoading(true)
-
-        const [poolRes, onchainEvents] = await Promise.allSettled([
-          fetch(`/api/pools?id=${groupId}`).then((r) => r.json()),
-          contractId
-            ? fetchContractEvents(contractId, startLedger)
-            : Promise.resolve([] as Activity[]),
-        ])
-
-        const supabaseRows: SupabaseActivity[] =
-          poolRes.status === "fulfilled" && Array.isArray(poolRes.value?.pool_activity)
-            ? poolRes.value.pool_activity
-            : []
-
-        const onchain: Activity[] =
-          onchainEvents.status === "fulfilled" ? onchainEvents.value : []
-
-        setAllActivities(mergeAndDedupe(onchain, supabaseRows.map(toActivity)))
-      } catch (err) {
-        console.error("Failed to fetch activities:", err)
-      } finally {
-        setLoading(false)
-        setRefreshing(false)
-      }
-    },
-    [groupId, contractId, startLedger]
-  )
+  const fetchOnchain = useCallback(async () => {
+    if (!contractAddress || contractAddress === "pending_deployment") return
+    try {
+      setLoadingOnchain(true)
+      const events = await fetchContractEvents(contractAddress, startLedger)
+      setOnchainActivities(events)
+    } catch (err) {
+      console.error("Failed to fetch onchain events:", err)
+    } finally {
+      setLoadingOnchain(false)
+    }
+  }, [contractAddress, startLedger])
 
   useEffect(() => {
-    fetchActivities()
-    const interval = setInterval(() => fetchActivities(true), 30_000)
-    return () => clearInterval(interval)
-  }, [fetchActivities])
+    fetchOnchain()
+  }, [fetchOnchain])
+
+  const refetch = useCallback(async () => {
+    await Promise.all([
+      refetchCache(),
+      fetchOnchain(),
+    ])
+  }, [refetchCache, fetchOnchain])
+
+  const dbActivities = (data?.db?.pool_activity ?? []).map(toActivity)
+  const allActivities = mergeAndDedupe(onchainActivities, dbActivities)
 
   const formatAddress = (address: string | null) => {
     if (!address) return "System"
@@ -108,6 +107,7 @@ export function GroupActivity({
       if (diffMins < 60) return `${diffMins}m ago`
       if (diffHours < 24) return `${diffHours}h ago`
       if (diffDays < 7) return `${diffDays}d ago`
+
       return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
     } catch {
       return "Unknown"
@@ -117,7 +117,7 @@ export function GroupActivity({
   const visible = allActivities.slice(0, page * PAGE_SIZE)
   const hasMore = visible.length < allActivities.length
 
-  if (loading) {
+  if (isLoading && allActivities.length === 0) {
     return (
       <Card className="p-6">
         <div className="flex items-center justify-center py-8">
@@ -134,11 +134,11 @@ export function GroupActivity({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => fetchActivities()}
-          disabled={refreshing}
+          onClick={refetch}
+          disabled={isLoading || loadingOnchain}
           className="h-8 w-8 p-0"
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-4 w-4 ${isLoading || loadingOnchain ? "animate-spin" : ""}`} />
         </Button>
       </div>
 

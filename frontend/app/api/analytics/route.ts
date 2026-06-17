@@ -134,12 +134,12 @@ export async function GET(req: NextRequest) {
 
       // Calculate balance
       const totalDeposits = activeActivities
-        .filter((a) => a.activity_type.toLowerCase() === 'deposit')
-        .reduce((sum, a) => sum + (a.amount || 0), 0)
+        .filter((a: any) => a.activity_type.toLowerCase() === 'deposit')
+        .reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
 
       const totalWithdrawals = activeActivities
-        .filter((a) => a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout')
-        .reduce((sum, a) => sum + (a.amount || 0), 0)
+        .filter((a: any) => a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout')
+        .reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
 
       const currentBalance = totalDeposits - totalWithdrawals
 
@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
       // Use stored daily metrics if available, otherwise aggregate dynamically
       let chartData = []
       if (dailyMetrics && dailyMetrics.length > 0) {
-        chartData = dailyMetrics.map((dm) => ({
+        chartData = dailyMetrics.map((dm: any) => ({
           date: dm.date,
           deposits: dm.total_deposits,
           withdrawals: dm.total_withdrawals,
@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
           risk_indicator: calculatedHealth.riskIndicator,
           last_calculated_at: new Date().toISOString(),
         })
-        .then(({ error }) => {
+        .then(({ error }: { error: any }) => {
           if (error) console.error('Failed to update health scores table:', error)
         })
 
@@ -194,9 +194,9 @@ export async function GET(req: NextRequest) {
             : calculatedHealth,
           prediction,
           membersCount: activeMembers.length,
-          activeMembersCount: activeMembers.filter((m) => m.status === 'paid').length,
-          lateMembersCount: activeMembers.filter((m) => m.status === 'late').length,
-          pendingMembersCount: activeMembers.filter((m) => m.status === 'pending').length,
+          activeMembersCount: activeMembers.filter((m: any) => m.status === 'paid').length,
+          lateMembersCount: activeMembers.filter((m: any) => m.status === 'late').length,
+          pendingMembersCount: activeMembers.filter((m: any) => m.status === 'pending').length,
         },
         chartData,
       })
@@ -251,7 +251,7 @@ export async function GET(req: NextRequest) {
         })
       }
 
-      const poolIds = userPools.map((p) => p.id)
+      const poolIds = userPools.map((p: any) => p.id)
 
       // Fetch all user activities across these pools
       const { data: userActivities } = await supabase
@@ -264,12 +264,12 @@ export async function GET(req: NextRequest) {
 
       // Calculate aggregate stats
       const totalDeposits = activities
-        .filter((a) => a.user_address?.toLowerCase() === lower && a.activity_type.toLowerCase() === 'deposit')
-        .reduce((sum, a) => sum + (a.amount || 0), 0)
+        .filter((a: any) => a.user_address?.toLowerCase() === lower && a.activity_type.toLowerCase() === 'deposit')
+        .reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
 
       const totalWithdrawals = activities
-        .filter((a) => a.user_address?.toLowerCase() === lower && (a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout'))
-        .reduce((sum, a) => sum + (a.amount || 0), 0)
+        .filter((a: any) => a.user_address?.toLowerCase() === lower && (a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout'))
+        .reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
 
       const totalSaved = totalDeposits - totalWithdrawals
 
@@ -280,15 +280,15 @@ export async function GET(req: NextRequest) {
         .in('pool_id', poolIds)
 
       const averageHealthScore = healthScores && healthScores.length > 0
-        ? Math.round(healthScores.reduce((sum, h) => sum + h.health_score, 0) / healthScores.length)
+        ? Math.round(healthScores.reduce((sum: number, h: any) => sum + h.health_score, 0) / healthScores.length)
         : 100
 
       // Map pools with their analytics
-      const poolsAnalytics = userPools.map((pool) => {
-        const poolHealth = healthScores?.find((h) => h.pool_id === pool.id)
-        const poolActs = activities.filter((a) => a.pool_id === pool.id)
-        const poolDeps = poolActs.filter((a) => a.activity_type.toLowerCase() === 'deposit').reduce((sum, a) => sum + (a.amount || 0), 0)
-        const poolWits = poolActs.filter((a) => a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout').reduce((sum, a) => sum + (a.amount || 0), 0)
+      const poolsAnalytics = userPools.map((pool: any) => {
+        const poolHealth = healthScores?.find((h: any) => h.pool_id === pool.id)
+        const poolActs = activities.filter((a: any) => a.pool_id === pool.id)
+        const poolDeps = poolActs.filter((a: any) => a.activity_type.toLowerCase() === 'deposit').reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
+        const poolWits = poolActs.filter((a: any) => a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout').reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
         
         return {
           id: pool.id,
@@ -303,7 +303,7 @@ export async function GET(req: NextRequest) {
 
       // Aggregate user global historical chart data
       const globalChartData = aggregateHistoricalData(
-        activities.filter((a) => a.user_address?.toLowerCase() === lower)
+        activities.filter((a: any) => a.user_address?.toLowerCase() === lower)
       )
 
       return NextResponse.json({
@@ -328,12 +328,12 @@ export async function GET(req: NextRequest) {
     const activities = allActivities || []
 
     const totalDeposits = activities
-      .filter((a) => a.activity_type.toLowerCase() === 'deposit')
-      .reduce((sum, a) => sum + (a.amount || 0), 0)
+      .filter((a: any) => a.activity_type.toLowerCase() === 'deposit')
+      .reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
 
     const totalWithdrawals = activities
-      .filter((a) => a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout')
-      .reduce((sum, a) => sum + (a.amount || 0), 0)
+      .filter((a: any) => a.activity_type.toLowerCase() === 'withdraw' || a.activity_type.toLowerCase() === 'payout')
+      .reduce((sum: number, a: any) => sum + (a.amount || 0), 0)
 
     const globalChartData = aggregateHistoricalData(activities)
 
@@ -341,7 +341,7 @@ export async function GET(req: NextRequest) {
       totalPools: pools.length,
       totalDeposits,
       totalWithdrawals,
-      activePools: pools.filter((p) => p.status === 'active').length,
+      activePools: pools.filter((p: any) => p.status === 'active').length,
       globalChartData,
     })
   } catch (error) {

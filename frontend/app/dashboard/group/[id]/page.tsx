@@ -14,7 +14,7 @@ import { fetchIsPaused, fetchPoolAdmin } from "@/hooks/useJointSaveContracts"
 interface Pool {
   id: string
   name: string
-  type: 'rotational' | 'target' | 'flexible'
+  type: "rotational" | "target" | "flexible"
   contract_address: string
   token_address: string
 }
@@ -30,15 +30,9 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     fetch(`/api/pools?id=${id}`)
-      .then(res => res.json())
-      .then(data => {
-        setPool(data)
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error('Failed to load pool:', err)
-        setLoading(false)
-      })
+      .then((res) => res.json())
+      .then((data) => { setPool(data); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [id])
 
   const refreshPoolState = useCallback(async () => {
@@ -58,6 +52,19 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   if (loading) return <div>Loading...</div>
   if (!pool) return <div>Pool not found</div>
 
+  /**
+   * All four child components share this cache key so only ONE RPC batch
+   * fires regardless of how many components mount simultaneously.
+   *
+   * Deployed pools key by contract address (C…).
+   * Pending-deployment pools fall back to the DB UUID so components can still
+   * display DB metadata while there is no on-chain state to read.
+   */
+  const cacheKey =
+    pool.contract_address && pool.contract_address !== "pending_deployment"
+      ? pool.contract_address
+      : pool.id
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
@@ -70,14 +77,20 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* ── Left column: details + activity ──────────────────────────── */}
           <div className="lg:col-span-2 space-y-6">
-            <GroupDetails groupId={id} />
+            <GroupDetails
+              groupId={id}
+              contractAddress={cacheKey}
+            />
             <GroupActivity
               groupId={id}
-              contractId={pool.contract_address || undefined}
+              contractAddress={cacheKey}
               startLedger={0}
             />
           </div>
+
+          {/* ── Right column: actions + members ──────────────────────────── */}
           <div className="space-y-6">
             <GroupActions
               groupId={id}
@@ -88,7 +101,10 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
               poolAdmin={poolAdmin}
               onPauseChange={refreshPoolState}
             />
-            <GroupMembers groupId={id} />
+            <GroupMembers
+              groupId={id}
+              contractAddress={cacheKey}
+            />
           </div>
         </div>
       </main>

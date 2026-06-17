@@ -73,6 +73,7 @@ interface PoolAnalyticsData {
     status: 'active' | 'completed' | 'paused'
     target_amount?: number | null
     deadline?: string | null
+    round_duration?: number | null
     created_at: string
   }
   metrics: {
