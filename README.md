@@ -82,6 +82,8 @@ All contracts are deployed on **Stellar Testnet**:
 
 *Deployed on April 16, 2026*
 
+For complete API documentation — functions, events, storage keys, error conditions, and CLI examples — see **[docs/contract-api.md](docs/contract-api.md)**.
+
 ## Getting Started
 
 ### Prerequisites
@@ -223,6 +225,10 @@ We welcome contributions from the community! Here's how you can help:
 - **[Smart Contract API](smartcontract/README.md)** – Contract interfaces and usage
 - **[Deployment Guide](smartcontract/scripts/deploy.sh)** – How to deploy contracts
 - **[Frontend Setup](frontend/README.md)** – Development environment setup
+
+## Security
+
+Please refer to [SECURITY.md](SECURITY.md) for our security policy, in-scope components, known limitations, and instructions on how to report vulnerabilities.
 
 ## Support
 
