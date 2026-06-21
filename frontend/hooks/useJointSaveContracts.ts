@@ -199,6 +199,7 @@ export function useInitializePool() {
     contractId: string,
     params: {
       token: string
+      admin: string
       members: string[]
       depositAmount: string
       roundDuration: number
@@ -219,6 +220,7 @@ export function useInitializePool() {
           new Contract(normalizeId(contractId)).call(
             "initialize",
             addressVal(params.token),
+            addressVal(params.admin),
             vecVal(params.members),
             i128Val(toStroops(params.depositAmount)),
             u64Val(BigInt(params.roundDuration)),
@@ -275,6 +277,7 @@ export function useInitializePool() {
     contractId: string,
     params: {
       token: string
+      admin: string
       members: string[]
       minimumDeposit: string
       withdrawalFeeBps: number
@@ -295,6 +298,7 @@ export function useInitializePool() {
           new Contract(normalizeId(contractId)).call(
             "initialize",
             addressVal(params.token),
+            addressVal(params.admin),
             vecVal(params.members),
             i128Val(toStroops(params.minimumDeposit)),
             u32Val(params.withdrawalFeeBps),
@@ -665,12 +669,11 @@ async function fetchContractStorage(contractId: string, keySymbol: string): Prom
       
       if (entry && typeof entry === "object") {
         if ("xdr" in entry) {
-          rawXdr = entry.xdr
+          rawXdr = entry.xdr as string
         } else if (entry.val && typeof (entry.val as any).toXDR === "function") {
           rawXdr = (entry.val as any).toXDR("base64")
         }
       }
-      
       if (!rawXdr) return null
       const ledgerData = xdr.LedgerEntryData.fromXDR(rawXdr, "base64")
       return ledgerData.contractData().val()
@@ -928,6 +931,15 @@ export async function fetchFlexibleState(
   }
 }
 
+export async function fetchPoolMembers(contractId: string): Promise<string[]> {
+  try {
+    const val = await viewCall(contractId, "members")
+    return val.vec()?.map(scValToString) ?? []
+  } catch {
+    return []
+  }
+}
+
 export async function fetchIsPaused(contractId: string): Promise<boolean> {
   try {
     const val = await viewCall(contractId, "is_paused")
@@ -946,7 +958,69 @@ export async function fetchPoolAdmin(contractId: string): Promise<string | null>
   }
 }
 
-// ── Pause / Unpause hooks ─────────────────────────────────────────────────────
+// ── Admin hooks ───────────────────────────────────────────────────────────────
+
+export function useAddPoolMember(contractId: string) {
+  const { kit, address } = useStellar()
+  const [isLoading, setIsLoading] = useState(false)
+
+  const addMember = async (newMember: string): Promise<string | undefined> => {
+    if (!kit || !address || !contractId || !newMember) return
+    setIsLoading(true)
+    try {
+      const account = await getRpc().getAccount(address)
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_NETWORK_PASSPHRASE,
+      })
+        .addOperation(
+          new Contract(normalizeId(contractId)).call(
+            "add_member",
+            addressVal(address),
+            addressVal(newMember)
+          )
+        )
+        .setTimeout(TX_TIMEOUT)
+        .build()
+      return await submitTx(kit, tx)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return { addMember, isLoading }
+}
+
+export function useRemovePoolMember(contractId: string) {
+  const { kit, address } = useStellar()
+  const [isLoading, setIsLoading] = useState(false)
+
+  const removeMember = async (member: string): Promise<string | undefined> => {
+    if (!kit || !address || !contractId || !member) return
+    setIsLoading(true)
+    try {
+      const account = await getRpc().getAccount(address)
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_NETWORK_PASSPHRASE,
+      })
+        .addOperation(
+          new Contract(normalizeId(contractId)).call(
+            "remove_member",
+            addressVal(address),
+            addressVal(member)
+          )
+        )
+        .setTimeout(TX_TIMEOUT)
+        .build()
+      return await submitTx(kit, tx)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return { removeMember, isLoading }
+}
 
 export function usePausePool(contractId: string) {
   const { kit, address } = useStellar()
