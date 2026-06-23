@@ -206,6 +206,7 @@ export type Database = {
             email_on_deposit: boolean
             email_on_round: boolean
             email_on_target: boolean
+            email_on_deposit_reminder: boolean
           }
           created_at: string
           updated_at: string
@@ -218,6 +219,7 @@ export type Database = {
             email_on_deposit?: boolean
             email_on_round?: boolean
             email_on_target?: boolean
+            email_on_deposit_reminder?: boolean
           }
           created_at?: string
           updated_at?: string
@@ -229,8 +231,31 @@ export type Database = {
             email_on_deposit?: boolean
             email_on_round?: boolean
             email_on_target?: boolean
+            email_on_deposit_reminder?: boolean
           }
           updated_at?: string
+        }
+      }
+      deposit_reminders: {
+        Row: {
+          id: string
+          pool_id: string
+          wallet_address: string
+          round_deadline: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          wallet_address: string
+          round_deadline: string
+          created_at?: string
+        }
+        Update: {
+          pool_id?: string
+          wallet_address?: string
+          round_deadline?: string
+          created_at?: string
         }
       }
       notifications: {
