@@ -82,6 +82,8 @@ All contracts are deployed on **Stellar Testnet**:
 
 *Deployed on April 16, 2026*
 
+For complete API documentation — functions, events, storage keys, error conditions, and CLI examples — see **[docs/contract-api.md](docs/contract-api.md)**.
+
 ## Getting Started
 
 ### Prerequisites
@@ -107,6 +109,8 @@ All contracts are deployed on **Stellar Testnet**:
    ```
 
 3. **Configure environment variables**
+   Use the inline comments in `frontend/.env.example` as the source of truth for each value. The frontend validates required variables during startup, so missing values fail fast with a clear `Missing required env var: ...` error.
+
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
@@ -123,6 +127,26 @@ All contracts are deployed on **Stellar Testnet**:
 
 5. **Access the application**
    Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Running E2E Tests
+
+The frontend has a Playwright end-to-end suite covering the critical user flows
+(create pool, deposit, wallet connect, navigation, responsive layout).
+
+```bash
+cd frontend
+pnpm install
+pnpm exec playwright install chromium   # one-time browser download
+pnpm test:e2e                           # headless run (Playwright starts the dev server)
+pnpm test:e2e:ui                        # interactive UI mode
+```
+
+The suite is fully deterministic — it mocks the `/api/pools` boundary and uses a
+test-gated wallet/RPC seam (`NEXT_PUBLIC_E2E`), so it needs **no** live Soroban
+network, wallet extension, or Supabase project. It runs on every PR via
+[`.github/workflows/e2e.yml`](.github/workflows/e2e.yml). See
+[frontend/e2e/README.md](frontend/e2e/README.md) for the design, the flaky-test
+policy, and details.
 
 ### Smart Contract Development
 
@@ -170,6 +194,10 @@ JointSave demonstrates several advanced Soroban patterns:
 ### Desktop Features
 ![CI/CD Pipeline](docs/ci-screenshot.png)
 *Automated testing and deployment*
+
+### Transaction Export
+![Transaction History with CSV Export](docs/transactions-screenshot.png)
+*Filter by date, pool, or activity type — then export to CSV*
 
 </div>
 
@@ -223,6 +251,10 @@ We welcome contributions from the community! Here's how you can help:
 - **[Smart Contract API](smartcontract/README.md)** – Contract interfaces and usage
 - **[Deployment Guide](smartcontract/scripts/deploy.sh)** – How to deploy contracts
 - **[Frontend Setup](frontend/README.md)** – Development environment setup
+
+## Security
+
+Please refer to [SECURITY.md](SECURITY.md) for our security policy, in-scope components, known limitations, and instructions on how to report vulnerabilities.
 
 ## Support
 

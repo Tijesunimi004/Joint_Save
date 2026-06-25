@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/toaster"
 import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
@@ -5,27 +6,33 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Web3Provider } from "@/components/web3-provider"
+import { PoolDataProvider } from "@/lib/data-layer/PoolDataProvider"
+import "@/lib/env"
+import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
+import { TxQueueBadge } from "@/components/tx-queue-badge"
 
 export const metadata: Metadata = {
-  title: "JointSave - Community Savings on Stellar",
+  title: "JointSave — Decentralized Community Savings on Stellar",
   description:
-    "Save together, grow together. Decentralized community savings built on the Stellar blockchain.",
+    "A decentralized community savings platform built on Stellar that enables groups to pool, save, and grow funds together.",
   icons: {
-    icon: "/joint-save.jpg",
-    shortcut: "/joint-save.jpg",
-    apple: "/joint-save.jpg",
+    icon: "/icon.png",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "JointSave - Community Savings on Stellar",
-    description: "Save together, grow together. Decentralized community savings built on the Stellar blockchain.",
-    images: ["/joint-save.jpg"],
+    title: "JointSave — Decentralized Community Savings on Stellar",
+    description:
+      "A decentralized community savings platform built on Stellar that enables groups to pool, save, and grow funds together.",
+    images: ["/opengraph-image.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "JointSave - Community Savings on Stellar",
-    description: "Save together, grow together. Decentralized community savings built on the Stellar blockchain.",
-    images: ["/joint-save.jpg"],
+    title: "JointSave — Decentralized Community Savings on Stellar",
+    description:
+      "A decentralized community savings platform built on Stellar that enables groups to pool, save, and grow funds together.",
+    images: ["/opengraph-image.png"],
   },
 }
 
@@ -35,12 +42,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Suspense fallback={null}>
-          <Web3Provider>{children}</Web3Provider>
-        </Suspense>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <Suspense fallback={null}>
+            <Web3Provider>
+              <PoolDataProvider>{children}</PoolDataProvider>
+            </Web3Provider>
+          </Suspense>
+        </ThemeProvider>
         <Analytics />
+        <Toaster />
+        <TxQueueBadge />
       </body>
     </html>
   )

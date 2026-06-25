@@ -14,44 +14,54 @@ The platform supports three distinct savings models:
 ### High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (Next.js)                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │   Landing    │  │  Dashboard   │  │ Group Detail │     │
-│  │     Page     │  │     Page     │  │     Page     │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │         Stellar Wallets Kit Integration              │  │
-│  │  (Freighter, xBull, Albedo, Lobstr)                 │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Stellar RPC / Horizon API                      │
-│         (soroban-testnet.stellar.org)                       │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│           Soroban Smart Contracts (Rust)                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │   Factory    │  │  Rotational  │  │    Target    │     │
-│  │   Contract   │  │     Pool     │  │     Pool     │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                    ┌──────────────┐                         │
-│                    │   Flexible   │                         │
-│                    │     Pool     │                         │
-│                    └──────────────┘                         │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Supabase (PostgreSQL)                      │
-│         (Off-chain metadata & user profiles)                │
-└─────────────────────────────────────────────────────────────┘
+  User (Browser / Wallet)
+          │
+          ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Frontend  ·  Next.js 14               │
+│                                                         │
+│   Landing Page   │   Dashboard   │   Group Detail       │
+│   ─────────────────────────────────────────────         │
+│   Stellar Wallets Kit  (Freighter · xBull · Lobstr)     │
+└────────────────────────┬────────────────────────────────┘
+                         │  signed transactions / view calls
+          ┌──────────────┴──────────────┐
+          ▼                             ▼
+┌──────────────────┐         ┌─────────────────────┐
+│  Stellar RPC     │         │   Supabase           │
+│  (Soroban)       │         │   (PostgreSQL)        │
+│                  │         │                      │
+│  simulate tx     │         │  pool metadata       │
+│  send tx         │         │  member lists        │
+│  view calls      │         │  activity feed       │
+└────────┬─────────┘         └─────────────────────┘
+         │  on-chain execution
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│               Soroban Smart Contracts  ·  Rust/WASM     │
+│                                                         │
+│  ┌─────────────┐  ┌────────────┐  ┌────────────┐       │
+│  │   Factory   │  │ Rotational │  │   Target   │       │
+│  │  (registry) │  │    Pool    │  │    Pool    │       │
+│  └─────────────┘  └────────────┘  └────────────┘       │
+│                        ┌────────────┐                   │
+│                        │  Flexible  │                   │
+│                        │    Pool    │                   │
+│                        └────────────┘                   │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**Data flow summary:**
+
+| Step | What happens |
+|------|-------------|
+| 1. User action | User clicks deposit/withdraw/create in the frontend |
+| 2. Build tx | Frontend builds a Soroban transaction via Stellar SDK |
+| 3. Sign | Stellar Wallets Kit prompts user's wallet to sign |
+| 4. Submit | Signed tx sent to Stellar RPC; result polled until confirmed |
+| 5. On-chain | Smart contract executes, updates balances & emits events |
+| 6. Off-chain | Activity recorded in Supabase for fast UI queries |
+| 7. Refresh | Frontend re-fetches on-chain state and updates UI |
 
 ### Technology Stack
 
@@ -78,6 +88,8 @@ Infrastructure:
 
 
 ## Smart Contract Layer
+
+> For the complete API reference (functions, events, storage keys, error conditions, and CLI examples) see **[docs/contract-api.md](docs/contract-api.md)**.
 
 ### Factory Contract
 
@@ -160,6 +172,28 @@ Features:
 - Withdrawal fees (basis points)
 - Optional yield distribution from external DeFi integrations
 - Proportional yield allocation based on balance
+
+
+### Storage TTL (Time-To-Live) Management
+
+To prevent critical contract state expiry under Soroban's state archival rules, all persistent storage entries utilize a Time-To-Live (TTL) management strategy:
+
+- **Bumping Thresholds**:
+  - `LEDGER_THRESHOLD = 518400` (~30 days): Bumping is triggered if the remaining TTL falls below this sequence count.
+  - `LEDGER_BUMP = 2592000` (~150 days): Storage entries have their TTL extended to this maximum.
+
+- **Optimized O(1) Automatic Bumping**:
+  To prevent gas exhaustion and out-of-gas (DoS) vulnerabilities on hot transaction paths, automatic state bumping is highly optimized:
+  - Configuration/global keys are bumped collectively in an O(1) helper function `bump_config_state_internal` at the end of every state-changing method.
+  - Member-specific keys (like individual `Balance` or transient flags like `HasDeposited`) are bumped individually in O(1) time within the methods that modify them (e.g. `deposit`, `withdraw`).
+
+- **Administrative Sweep**:
+  - Each contract exposes a public `bump_state(env: Env)` endpoint with no authentication required.
+  - Calling this sweeps the contract, executing an O(N) loop to extend the TTL of all configuration keys and all registered member balance keys. This is useful for reviving long-lived pools that have had no user interaction for a long period.
+
+- **Frontend Exposing & Warnings**:
+  - The frontend caches and tracks `ttlDays` using the centralized `PoolDataProvider` context.
+  - If a pool's storage lease is close to expiry (TTL < 7 days), the pool details view displays a warning alert banner with an "Extend Storage" button to allow users to trigger the manual `bump_state` sweep transaction.
 
 
 ## Frontend Architecture

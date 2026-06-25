@@ -12,6 +12,8 @@ export async function POST(req: NextRequest) {
       creatorAddress,
       poolAddress,
       tokenAddress,
+      tokenSymbol,
+      tokenDecimals,
       members,
       contributionAmount,
       roundDuration,
@@ -40,6 +42,8 @@ export async function POST(req: NextRequest) {
       creatorAddress,
       contractAddress: poolAddress,
       tokenAddress,
+      tokenSymbol,
+      tokenDecimals,
       members,
       contributionAmount,
       roundDuration,
@@ -85,6 +89,7 @@ export async function GET(req: NextRequest) {
   try {
     const poolId = req.nextUrl.searchParams.get('id')
     const creatorAddress = req.nextUrl.searchParams.get('creator')
+    const contractAddress = req.nextUrl.searchParams.get('contract')
 
     if (poolId) {
       // Fetch single pool by ID
@@ -119,19 +124,75 @@ export async function GET(req: NextRequest) {
       }
 
       return NextResponse.json(data)
-    } else if (creatorAddress) {
-      // Fetch all pools by creator
+    } else if (contractAddress) {
+      // Fetch single pool by contract address
       const { data, error } = await supabase
         .from('pools')
-        .select('*')
+        .select(`
+          *,
+          pool_members (
+            id,
+            member_address,
+            contribution_amount,
+            status
+          ),
+          pool_activity (
+            id,
+            activity_type,
+            user_address,
+            amount,
+            description,
+            created_at,
+            tx_hash
+          )
+        `)
+        .eq('contract_address', contractAddress)
+        .single()
+
+      if (error) {
+        return NextResponse.json(
+          { error: 'Pool not found' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json(data)
+    } else if (creatorAddress) {
+      const PAGE_SIZE = 6
+      const page = Math.max(0, parseInt(req.nextUrl.searchParams.get('page') || '0', 10))
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      const { data, error, count } = await supabase
+        .from('pools')
+        .select('*', { count: 'exact' })
         .eq('creator_address', creatorAddress.toLowerCase())
         .order('created_at', { ascending: false })
+        .range(from, to)
 
       if (error) {
         throw error
       }
 
-      return NextResponse.json(data || [])
+      return NextResponse.json({ data: data || [], total: count ?? 0, page, pageSize: PAGE_SIZE })
+    } else if (req.nextUrl.searchParams.get('explore') !== null) {
+      // Explore feed — all pools, paginated, newest first, for prospective members.
+      const PAGE_SIZE = 6
+      const page = Math.max(0, parseInt(req.nextUrl.searchParams.get('page') || '0', 10))
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      const { data, error, count } = await supabase
+        .from('pools')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) {
+        throw error
+      }
+
+      return NextResponse.json({ data: data || [], total: count ?? 0, page, pageSize: PAGE_SIZE })
     } else {
       // Fetch all pools
       const { data, error } = await supabase
@@ -176,6 +237,27 @@ export async function PATCH(req: NextRequest) {
         description: `${activity_type} transaction`,
       }])
       if (actErr) console.error('Activity log error:', actErr)
+
+      // Synchronize database pool_members table with on-chain membership changes
+      if (activity_type === 'member_added' && body.memberAddress) {
+        const { error: addErr } = await supabase
+          .from('pool_members')
+          .insert([{
+            pool_id: poolId,
+            member_address: body.memberAddress.toLowerCase(),
+            contribution_amount: 0,
+            status: 'pending',
+          }])
+        if (addErr) console.error('Failed to add member in DB:', addErr)
+      } else if (activity_type === 'member_removed' && body.memberAddress) {
+        const { error: remErr } = await supabase
+          .from('pool_members')
+          .delete()
+          .eq('pool_id', poolId)
+          .eq('member_address', body.memberAddress.toLowerCase())
+        if (remErr) console.error('Failed to remove member in DB:', remErr)
+      }
+
       return NextResponse.json({ success: true })
     }
 

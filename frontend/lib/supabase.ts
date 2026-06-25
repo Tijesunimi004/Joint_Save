@@ -22,6 +22,8 @@ export type Database = {
           creator_address: string
           contract_address: string
           token_address: string
+          token_symbol: string
+          token_decimals: number
           total_saved: number
           target_amount: number | null
           progress: number
@@ -46,6 +48,8 @@ export type Database = {
           creator_address: string
           contract_address: string
           token_address: string
+          token_symbol?: string
+          token_decimals?: number
           total_saved?: number
           target_amount?: number | null
           progress?: number
@@ -68,6 +72,8 @@ export type Database = {
           creator_address?: string
           contract_address?: string
           token_address?: string
+          token_symbol?: string
+          token_decimals?: number
           total_saved?: number
           target_amount?: number | null
           progress?: number
@@ -133,6 +139,169 @@ export type Database = {
           tx_hash?: string | null
         }
       }
+      pool_daily_metrics: {
+        Row: {
+          id: string
+          pool_id: string
+          date: string
+          total_balance: number
+          total_deposits: number
+          total_withdrawals: number
+          active_members_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          date?: string
+          total_balance?: number
+          total_deposits?: number
+          total_withdrawals?: number
+          active_members_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          date?: string
+          total_balance?: number
+          total_deposits?: number
+          total_withdrawals?: number
+          active_members_count?: number
+          created_at?: string
+        }
+      }
+      join_requests: {
+        Row: {
+          id: string
+          pool_id: string
+          requester_address: string
+          status: 'pending' | 'accepted' | 'declined'
+          created_at: string
+          responded_at: string | null
+          responder_id: string | null
+        }
+        Insert: {
+          pool_id: string
+          requester_address: string
+          status?: 'pending' | 'accepted' | 'declined'
+        }
+        Update: {
+          status?: 'pending' | 'accepted' | 'declined'
+          responded_at?: string | null
+          responder_id?: string | null
+        }
+      }
+      pool_health_scores: {
+        Row: {
+          id: string
+          pool_id: string
+          health_score: number
+          participation_rate: number
+          risk_indicator: string
+          last_calculated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          health_score?: number
+          participation_rate?: number
+          risk_indicator?: string
+          last_calculated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          health_score?: number
+          participation_rate?: number
+          risk_indicator?: string
+          last_calculated_at?: string
+        }
+      }
+      user_profiles: {
+        Row: {
+          wallet_address: string
+          email: string | null
+          notification_preferences: {
+            email_on_payout: boolean
+            email_on_deposit: boolean
+            email_on_round: boolean
+            email_on_target: boolean
+            email_on_deposit_reminder: boolean
+          }
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          wallet_address: string
+          email?: string | null
+          notification_preferences?: {
+            email_on_payout?: boolean
+            email_on_deposit?: boolean
+            email_on_round?: boolean
+            email_on_target?: boolean
+            email_on_deposit_reminder?: boolean
+          }
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          email?: string | null
+          notification_preferences?: {
+            email_on_payout?: boolean
+            email_on_deposit?: boolean
+            email_on_round?: boolean
+            email_on_target?: boolean
+            email_on_deposit_reminder?: boolean
+          }
+          updated_at?: string
+        }
+      }
+      deposit_reminders: {
+        Row: {
+          id: string
+          pool_id: string
+          wallet_address: string
+          round_deadline: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          wallet_address: string
+          round_deadline: string
+          created_at?: string
+        }
+        Update: {
+          pool_id?: string
+          wallet_address?: string
+          round_deadline?: string
+          created_at?: string
+        }
+      }
+      notifications: {
+        Row: {
+          id: string
+          wallet_address: string
+          pool_id: string | null
+          activity_type: string
+          message: string
+          read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          wallet_address: string
+          pool_id?: string | null
+          activity_type: string
+          message: string
+          read?: boolean
+          created_at?: string
+        }
+        Update: {
+          read?: boolean
+        }
+      }
     }
   }
 }
@@ -145,6 +314,8 @@ export async function savePoolToDatabase({
   creatorAddress,
   contractAddress,
   tokenAddress,
+  tokenSymbol,
+  tokenDecimals,
   members,
   contributionAmount,
   roundDuration,
@@ -161,6 +332,8 @@ export async function savePoolToDatabase({
   creatorAddress: string
   contractAddress: string
   tokenAddress: string
+  tokenSymbol?: string
+  tokenDecimals?: number
   members: string[]
   contributionAmount?: string
   roundDuration?: number
@@ -184,6 +357,8 @@ export async function savePoolToDatabase({
           creator_address: creatorAddress.toLowerCase(),
           contract_address: contractAddress,
           token_address: tokenAddress,
+          token_symbol: tokenSymbol || 'XLM',
+          token_decimals: tokenDecimals ?? 7,
           members_count: members.length,
           contribution_amount: contributionAmount ? parseFloat(contributionAmount) : null,
           round_duration: roundDuration || null,
